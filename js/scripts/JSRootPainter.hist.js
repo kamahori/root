@@ -1666,7 +1666,7 @@
       if (d.check('E', true)) {
          this.Error = true;
          if (hdim == 1) {
-            this.Zero = false; // do not draw empty bins with erros
+            this.Zero = false; // do not draw empty bins with errors
             this.Hist = false;
             if (!isNaN(parseInt(d.part[0]))) this.ErrorKind = parseInt(d.part[0]);
             if ((this.ErrorKind === 3) || (this.ErrorKind === 4)) this.need_fillcol = true;
@@ -6540,7 +6540,7 @@
 
          // if there is auto colors assignment, try to provide it
          if (this.options._pfc || this.options._plc || this.options._pmc) {
-            if (!this.pallette && JSROOT.Painter.GetColorPalette)
+            if (!this.palette && JSROOT.Painter.GetColorPalette)
                this.palette = JSROOT.Painter.GetColorPalette();
             if (this.palette) {
                var color = this.palette.calcColor(rindx, nhists+1);

@@ -211,3 +211,60 @@ TEST(RNTuple, Clusters)
    EXPECT_EQ(42.0, (*rdNnlo)[0][0]);
    EXPECT_EQ(24.0, (*rdFourVec)[1]);
 }
+
+
+TEST(RNTupleModel, EnforceValidFieldNames)
+{
+   auto model = RNTupleModel::Create();
+
+   auto field = model->MakeField<float>("pt", 42.0);
+
+   // MakeField
+   try {
+      auto field2 = model->MakeField<float>("pt", 42.0);
+      FAIL() << "repeated field names should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name 'pt' already exists"));
+   }
+   try {
+      auto field3 = model->MakeField<float>("", 42.0);
+      FAIL() << "empty string as field name should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name cannot be empty string"));
+   }
+   try {
+      auto field3 = model->MakeField<float>("pt.pt", 42.0);
+      FAIL() << "field name with periods should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name 'pt.pt' cannot contain dot characters '.'"));
+   }
+
+   // AddField
+   try {
+      model->AddField(std::make_unique<RField<float>>(RField<float>("pt")));
+      FAIL() << "repeated field names should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name 'pt' already exists"));
+   }
+   try {
+      float num = 10.0;
+      model->AddField("pt", &num);
+      FAIL() << "repeated field names should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name 'pt' already exists"));
+   }
+
+   // MakeCollection
+   try {
+      auto otherModel = RNTupleModel::Create();
+      auto collection = model->MakeCollection("pt", std::move(otherModel));
+      FAIL() << "repeated field names should throw";
+   } catch (const RException& err) {
+      EXPECT_THAT(err.what(), testing::HasSubstr("field name 'pt' already exists"));
+   }
+
+   // subfield names don't throw because full name differs (otherModel.pt)
+   auto otherModel = RNTupleModel::Create();
+   auto otherField = otherModel->MakeField<float>("pt", 42.0);
+   auto collection = model->MakeCollection("otherModel", std::move(otherModel));
+}

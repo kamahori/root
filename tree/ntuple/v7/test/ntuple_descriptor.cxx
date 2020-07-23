@@ -4,14 +4,39 @@ TEST(RNTuple, Descriptor)
 {
    RNTupleDescriptorBuilder descBuilder;
    descBuilder.SetNTuple("MyTuple", "Description", "Me", RNTupleVersion(1, 2, 3), ROOT::Experimental::RNTupleUuid());
-   descBuilder.AddField(0, RNTupleVersion(), RNTupleVersion(), "", "", 0, ENTupleStructure::kRecord);
-   descBuilder.AddField(1, RNTupleVersion(), RNTupleVersion(), "list", "std::vector<std::int32_t>",
-                        0, ENTupleStructure::kCollection);
+   descBuilder.AddField(RDanglingFieldDescriptor()
+      .FieldId(0)
+      .FieldName("")
+      .Structure(ENTupleStructure::kRecord)
+      .MakeDescriptor()
+      .Unwrap());
+   descBuilder.AddField(RDanglingFieldDescriptor()
+      .FieldId(1)
+      .FieldName("list")
+      .TypeName("std::vector<std::int32_t>")
+      .Structure(ENTupleStructure::kCollection)
+      .MakeDescriptor()
+      .Unwrap());
    descBuilder.AddFieldLink(0, 1);
-   descBuilder.AddField(2, RNTupleVersion(), RNTupleVersion(), "list", "std::int32_t", 0, ENTupleStructure::kLeaf);
+
+   descBuilder.AddField(RDanglingFieldDescriptor()
+      .FieldId(2)
+      .FieldName("list") // at different levels, duplicate names are fine
+      .TypeName("std::int32_t")
+      .Structure(ENTupleStructure::kLeaf)
+      .MakeDescriptor()
+      .Unwrap());
    descBuilder.AddFieldLink(1, 2);
-   descBuilder.AddField(42, RNTupleVersion(), RNTupleVersion(), "x", "std::string", 0, ENTupleStructure::kLeaf);
+
+   descBuilder.AddField(RDanglingFieldDescriptor()
+      .FieldId(42)
+      .FieldName("x")
+      .TypeName("std::string")
+      .Structure(ENTupleStructure::kLeaf)
+      .MakeDescriptor()
+      .Unwrap());
    descBuilder.AddFieldLink(0, 42);
+
    descBuilder.AddColumn(3, 42, RNTupleVersion(), RColumnModel(EColumnType::kIndex, true), 0);
    descBuilder.AddColumn(4, 42, RNTupleVersion(), RColumnModel(EColumnType::kByte, true), 1);
 
@@ -78,6 +103,11 @@ TEST(RNTuple, Descriptor)
    EXPECT_EQ(2U, reference.GetVersion().GetVersionMin());
    EXPECT_EQ(3U, reference.GetVersion().GetFlags());
 
+   EXPECT_EQ(1U, reference.FindNextClusterId(0));
+   EXPECT_EQ(ROOT::Experimental::kInvalidDescriptorId, reference.FindNextClusterId(1));
+   EXPECT_EQ(0U, reference.FindPrevClusterId(1));
+   EXPECT_EQ(ROOT::Experimental::kInvalidDescriptorId, reference.FindPrevClusterId(0));
+
    auto szHeader = reference.SerializeHeader(nullptr);
    auto headerBuffer = new unsigned char[szHeader];
    reference.SerializeHeader(headerBuffer);
@@ -102,7 +132,7 @@ TEST(RNTuple, Descriptor)
    EXPECT_EQ(NTupleSize_t(1100), reference.GetNElements(3));
    EXPECT_EQ(NTupleSize_t(3300), reference.GetNElements(4));
 
-   EXPECT_EQ(DescriptorId_t(0), reference.FindFieldId("", ROOT::Experimental::kInvalidDescriptorId));
+   EXPECT_EQ(DescriptorId_t(0), reference.GetFieldZeroId());
    EXPECT_EQ(DescriptorId_t(1), reference.FindFieldId("list", 0));
    EXPECT_EQ(DescriptorId_t(1), reference.FindFieldId("list"));
    EXPECT_EQ(DescriptorId_t(2), reference.FindFieldId("list", 1));
@@ -122,4 +152,158 @@ TEST(RNTuple, Descriptor)
 
    delete[] footerBuffer;
    delete[] headerBuffer;
+}
+
+TEST(RDanglingFieldDescriptor, MakeDescriptorErrors)
+{
+   // minimum requirements for making a field descriptor from scratch
+   RFieldDescriptor fieldDesc = RDanglingFieldDescriptor()
+      .FieldId(1)
+      .Structure(ENTupleStructure::kCollection)
+      .FieldName("someField")
+      .MakeDescriptor()
+      .Unwrap();
+
+   // MakeDescriptor() returns an RResult<RFieldDescriptor>
+   // -- here we check the error cases
+
+   // must set field id
+   RResult<RFieldDescriptor> fieldDescRes = RDanglingFieldDescriptor().MakeDescriptor();
+   ASSERT_FALSE(fieldDescRes) << "default constructed dangling descriptors should throw";
+   EXPECT_THAT(fieldDescRes.GetError()->GetReport(), testing::HasSubstr("invalid field id"));
+
+   // must set field structure
+   fieldDescRes = RDanglingFieldDescriptor()
+      .FieldId(1)
+      .MakeDescriptor();
+   ASSERT_FALSE(fieldDescRes) << "field descriptors without structure should throw";
+   EXPECT_THAT(fieldDescRes.GetError()->GetReport(), testing::HasSubstr("invalid field structure"));
+
+   // must set field name
+   fieldDescRes = RDanglingFieldDescriptor()
+      .FieldId(1)
+      .Structure(ENTupleStructure::kCollection)
+      .MakeDescriptor();
+   ASSERT_FALSE(fieldDescRes) << "unnamed field descriptors should throw";
+   EXPECT_THAT(fieldDescRes.GetError()->GetReport(), testing::HasSubstr("field name cannot be empty string"));
+}
+
+TEST(RFieldDescriptorRange, IterateOverFieldNames)
+{
+   auto model = RNTupleModel::Create();
+   auto floats = model->MakeField<std::vector<float>>("jets");
+   auto bools = model->MakeField<std::vector<bool>>("bools");
+   auto bool_vec_vec = model->MakeField<std::vector<std::vector<bool>>>("bool_vec_vec");
+   auto ints = model->MakeField<std::int32_t>("ints");
+
+   FileRaii fileGuard("test_field_iterator.root");
+   {
+      RNTupleWriter ntuple(std::move(model),
+         std::make_unique<RPageSinkFile>("ntuple", fileGuard.GetPath(), RNTupleWriteOptions()));
+      ntuple.Fill();
+   }
+
+   auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
+   // iterate over top-level fields
+   std::vector<std::string> names{};
+   for (auto& f: ntuple->GetDescriptor().GetTopLevelFields()) {
+      names.push_back(f.GetFieldName());
+   }
+   ASSERT_EQ(names.size(), 4);
+   EXPECT_EQ(names[0], std::string("jets"));
+   EXPECT_EQ(names[1], std::string("bools"));
+   EXPECT_EQ(names[2], std::string("bool_vec_vec"));
+   EXPECT_EQ(names[3], std::string("ints"));
+
+   const auto& ntuple_desc = ntuple->GetDescriptor();
+   auto top_level_fields = ntuple_desc.GetTopLevelFields();
+
+   // iterate over child field ranges
+   const auto& float_vec_desc = *top_level_fields.begin();
+   EXPECT_EQ(float_vec_desc.GetFieldName(), std::string("jets"));
+   auto float_vec_child_range = ntuple_desc.GetFieldRange(float_vec_desc);
+   std::vector<std::string> child_names{};
+   for (auto& child_field: float_vec_child_range) {
+      child_names.push_back(child_field.GetFieldName());
+      // check the empty range
+      auto float_child_range = ntuple_desc.GetFieldRange(child_field);
+      EXPECT_EQ(float_child_range.begin(), float_child_range.end());
+   }
+   ASSERT_EQ(child_names.size(), 1);
+   EXPECT_EQ(child_names[0], std::string("float"));
+
+   // check if canonical iterator methods work
+   auto iter = top_level_fields.begin();
+   std::advance(iter, 2);
+   const auto& bool_vec_vec_desc = *iter;
+   EXPECT_EQ(bool_vec_vec_desc.GetFieldName(), std::string("bool_vec_vec"));
+
+   child_names.clear();
+   for (auto& child_field: ntuple_desc.GetFieldRange(bool_vec_vec_desc)) {
+      child_names.push_back(child_field.GetFieldName());
+   }
+   ASSERT_EQ(child_names.size(), 1);
+   EXPECT_EQ(child_names[0], std::string("std::vector<bool>"));
+}
+
+TEST(RFieldDescriptorRange, SortByLambda)
+{
+   auto model = RNTupleModel::Create();
+   auto floats = model->MakeField<std::vector<float>>("jets");
+   auto bools = model->MakeField<std::vector<bool>>("bools");
+   auto bool_vec_vec = model->MakeField<std::vector<std::vector<bool>>>("bool_vec_vec");
+   auto ints = model->MakeField<std::int32_t>("ints");
+
+   FileRaii fileGuard("test_field_iterator.root");
+   {
+      RNTupleWriter ntuple(std::move(model),
+         std::make_unique<RPageSinkFile>("ntuple", fileGuard.GetPath(), RNTupleWriteOptions()));
+      ntuple.Fill();
+   }
+
+   auto ntuple = RNTupleReader::Open("ntuple", fileGuard.GetPath());
+   const auto& ntuple_desc = ntuple->GetDescriptor();
+   auto alpha_order = [&](auto lhs, auto rhs) {
+      return ntuple_desc.GetFieldDescriptor(lhs).GetFieldName()
+         < ntuple_desc.GetFieldDescriptor(rhs).GetFieldName();
+   };
+
+   std::vector<std::string> sorted_names = {};
+   for (auto& f: ntuple_desc.GetTopLevelFields(alpha_order)) {
+      sorted_names.push_back(f.GetFieldName());
+   }
+   ASSERT_EQ(sorted_names.size(), 4);
+   EXPECT_EQ(sorted_names[0], std::string("bool_vec_vec"));
+   EXPECT_EQ(sorted_names[1], std::string("bools"));
+   EXPECT_EQ(sorted_names[2], std::string("ints"));
+   EXPECT_EQ(sorted_names[3], std::string("jets"));
+
+   // reverse alphabetical
+   sorted_names.clear();
+   for (auto& f: ntuple_desc.GetTopLevelFields(
+      [&](auto lhs, auto rhs) { return !alpha_order(lhs, rhs); }))
+   {
+      sorted_names.push_back(f.GetFieldName());
+   }
+   ASSERT_EQ(sorted_names.size(), 4);
+   EXPECT_EQ(sorted_names[0], std::string("jets"));
+   EXPECT_EQ(sorted_names[1], std::string("ints"));
+   EXPECT_EQ(sorted_names[2], std::string("bools"));
+   EXPECT_EQ(sorted_names[3], std::string("bool_vec_vec"));
+
+   // alphabetical by type name
+   std::vector<std::string> sorted_by_typename = {};
+   for (auto& f: ntuple_desc.GetTopLevelFields(
+      [&](auto lhs, auto rhs) {
+         return ntuple_desc.GetFieldDescriptor(lhs).GetTypeName()
+            < ntuple_desc.GetFieldDescriptor(rhs).GetTypeName(); }))
+   {
+      sorted_by_typename.push_back(f.GetFieldName());
+   }
+   // int32_t, vector<bool>, vector<float>, vector<vector<bool>
+   ASSERT_EQ(sorted_by_typename.size(), 4);
+   EXPECT_EQ(sorted_by_typename[0], std::string("ints"));
+   EXPECT_EQ(sorted_by_typename[1], std::string("bools"));
+   EXPECT_EQ(sorted_by_typename[2], std::string("jets"));
+   EXPECT_EQ(sorted_by_typename[3], std::string("bool_vec_vec"));
 }

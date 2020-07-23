@@ -140,7 +140,7 @@ if(gcctoolchain)
 endif()
 
 # We will not fix llvm or clang.
-string(REPLACE "-Werror" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+string(REPLACE "-Werror " "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ")
 
 if(LLVM_SHARED_LINKER_FLAGS)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${LLVM_SHARED_LINKER_FLAGS}")
@@ -405,8 +405,11 @@ Please install Python or specify the PYTHON_EXECUTABLE CMake variable.")
 
 
 if (builtin_clang)
+  # For builtin LLVM this is set in interpreter/llvm/src/CMakeLists.txt
+  set(Clang_DIR ${LLVM_BINARY_DIR}/tools/clang/)
   add_subdirectory(llvm/src/tools/clang EXCLUDE_FROM_ALL)
 else()
+  set(Clang_DIR ${LLVM_BINARY_DIR}/lib/cmake/clang/)
   add_subdirectory(cling)
 endif()
 endif(builtin_llvm)

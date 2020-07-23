@@ -4,6 +4,7 @@
 #include "TFile.h"
 #include "TROOT.h"
 #include "TSystem.h"
+#include <TInterpreter.h>
 #include "TTree.h"
 #include "gtest/gtest.h"
 #include <limits>
@@ -587,13 +588,14 @@ TEST(RDFSnapshotMore, ReadWriteNestedLeaves)
    WriteTreeWithLeaves(treename, fname);
    RDataFrame d(treename, fname);
    const auto outfname = "out_readwritenestedleaves.root";
-   auto d2 = d.Snapshot<int, int>(treename, outfname, {"v.a", "v.b"});
-   EXPECT_EQ(d2->GetColumnNames(), std::vector<std::string>({"v_a", "v_b"}));
+   ROOT::RDF::RNode d2(d);
+   ROOT_EXPECT_INFO((d2 = *d.Snapshot<int, int>(treename, outfname, {"v.a", "v.b"})), "Snapshot", "Column v.a will be saved as v_a\nInfo in <Snapshot>: Column v.b will be saved as v_b");
+   EXPECT_EQ(d2.GetColumnNames(), std::vector<std::string>({"v_a", "v_b"}));
    auto check_a_b = [](int a, int b) {
       EXPECT_EQ(a, 1);
       EXPECT_EQ(b, 2);
    };
-   d2->Foreach(check_a_b, {"v_a", "v_b"});
+   d2.Foreach(check_a_b, {"v_a", "v_b"});
    gSystem->Unlink(fname);
    gSystem->Unlink(outfname);
 
@@ -671,7 +673,13 @@ void ReadWriteTClonesArray()
       // write as TClonesArray
       auto out_df = ROOT::RDataFrame("t", "df_readwritetclonesarray.root")
                        .Snapshot<TClonesArray>("t", "df_readwriteclonesarray1.root", {"arr"});
-      const auto hvec = out_df->Take<RVec<TH1D>>("arr")->at(0);
+      RVec<TH1D> hvec;
+
+#ifndef NDEBUG
+      ROOT_EXPECT_WARNING(hvec = out_df->Take<RVec<TH1D>>("arr")->at(0), "RColumnValue::Get", "Branch arr hangs from a non-split branch. A copy is being performed in order to properly read the content.");
+#else
+      ROOT_EXPECT_NODIAG(hvec = out_df->Take<RVec<TH1D>>("arr")->at(0));
+#endif
       CheckTClonesArrayOutput(hvec);
    }
 
@@ -690,7 +698,12 @@ void ReadWriteTClonesArray()
       // write as Snapshot wants
       auto out_df =
          ROOT::RDataFrame("t", "df_readwritetclonesarray.root").Snapshot("t", "df_readwriteclonesarray3.root", {"arr"});
-      const auto hvec = out_df->Take<RVec<TH1D>>("arr")->at(0);
+      RVec<TH1D> hvec;
+#ifndef NDEBUG
+      ROOT_EXPECT_WARNING(hvec = out_df->Take<RVec<TH1D>>("arr")->at(0), "RColumnValue::Get", "Branch arr hangs from a non-split branch. A copy is being performed in order to properly read the content.");
+#else
+      ROOT_EXPECT_NODIAG(hvec = out_df->Take<RVec<TH1D>>("arr")->at(0));
+#endif
       CheckTClonesArrayOutput(hvec);
    }
 
@@ -703,6 +716,19 @@ void ReadWriteTClonesArray()
 TEST(RDFSnapshotMore, TClonesArray)
 {
    ReadWriteTClonesArray();
+}
+
+// ROOT-10702
+TEST(RDFSnapshotMore, CompositeTypeWithNameClash)
+{
+   const auto fname = "snap_compositetypewithnameclash.root";
+   gInterpreter->Declare("struct Int { int x; };");
+   ROOT::RDataFrame df(3);
+   auto snap_df = df.Define("i", "Int{-1};").Define("x", [] { return 1; }).Snapshot("t", fname);
+   EXPECT_EQ(snap_df->Sum<int>("x").GetValue(), 3); // prints -3 if the wrong "x" is written out
+   EXPECT_EQ(snap_df->Sum<int>("i.x").GetValue(), -3);
+
+   gSystem->Unlink(fname);
 }
 
 /********* MULTI THREAD TESTS ***********/

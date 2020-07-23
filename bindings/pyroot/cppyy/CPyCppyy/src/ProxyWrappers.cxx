@@ -141,7 +141,7 @@ static inline void sync_templates(
     Py_DECREF(pyname);
 }
 
-static int BuildScopeProxyDict(Cppyy::TCppScope_t scope, PyObject* pyclass)
+static int BuildScopeProxyDict(Cppyy::TCppScope_t scope, PyObject* pyclass, const unsigned int flags)
 {
 // Collect methods and data for the given scope, and add them to the given python
 // proxy object.
@@ -226,7 +226,10 @@ static int BuildScopeProxyDict(Cppyy::TCppScope_t scope, PyObject* pyclass)
             mtName = "__init__";
             hasConstructor = true;
             if (!isAbstract)
-                pycall = new CPPConstructor(scope, method);
+		if (flags & CPPScope::kIsMultiCross) {
+                    pycall = new CPPMultiConstructor(scope, method);
+                } else
+                    pycall = new CPPConstructor(scope, method);
             else
                 pycall = new CPPAbstractClassConstructor(scope, method);
         } else                               // member function
@@ -484,14 +487,14 @@ PyObject* CPyCppyy::GetScopeProxy(Cppyy::TCppScope_t scope)
 }
 
 //----------------------------------------------------------------------------
-PyObject* CPyCppyy::CreateScopeProxy(Cppyy::TCppScope_t scope)
+PyObject* CPyCppyy::CreateScopeProxy(Cppyy::TCppScope_t scope, const unsigned flags)
 {
 // Convenience function with a lookup first through the known existing proxies.
     PyObject* pyclass = GetScopeProxy(scope);
     if (pyclass)
         return pyclass;
 
-    return CreateScopeProxy(Cppyy::GetScopedFinalName(scope));
+    return CreateScopeProxy(Cppyy::GetScopedFinalName(scope), nullptr, flags);
 }
 
 //----------------------------------------------------------------------------
@@ -506,7 +509,7 @@ PyObject* CPyCppyy::CreateScopeProxy(PyObject*, PyObject* args)
 }
 
 //----------------------------------------------------------------------------
-PyObject* CPyCppyy::CreateScopeProxy(const std::string& name, PyObject* parent)
+PyObject* CPyCppyy::CreateScopeProxy(const std::string& name, PyObject* parent, const unsigned flags)
 {
 // Build a python shadow class for the named C++ class or namespace.
 
@@ -670,7 +673,7 @@ PyObject* CPyCppyy::CreateScopeProxy(const std::string& name, PyObject* parent)
 
     // fill the dictionary, if successful
         if (pyscope) {
-            if (BuildScopeProxyDict(klass, pyscope)) {
+            if (BuildScopeProxyDict(klass, pyscope, flags)) {
             // something failed in building the dictionary
                 Py_DECREF(pyscope);
                 pyscope = nullptr;
@@ -841,12 +844,11 @@ PyObject* CPyCppyy::BindCppObjectNoCast(Cppyy::TCppObject_t address,
     CPPInstance* pyobj =
         (CPPInstance*)((PyTypeObject*)pyclass)->tp_new((PyTypeObject*)pyclass, args, nullptr);
     Py_DECREF(args);
-    Py_DECREF(pyclass);
 
 // bind, register and return if successful
     if (pyobj != 0) { // fill proxy value?
         unsigned objflags =
-            (isRef ? CPPInstance::kIsReference : 0) | (isValue ? CPPInstance::kIsValue : 0);
+            (isRef ? CPPInstance::kIsReference : 0) | (isValue ? CPPInstance::kIsValue : 0) | (flags & CPPInstance::kIsOwner);
         pyobj->Set(address, (CPPInstance::EFlags)objflags);
 
         if (smart_type)
@@ -861,8 +863,12 @@ PyObject* CPyCppyy::BindCppObjectNoCast(Cppyy::TCppObject_t address,
     if (((CPPClass*)pyclass)->fFlags & CPPScope::kIsException) {
         PyObject* exc_obj = CPPExcInstance_Type.tp_new(&CPPExcInstance_Type, nullptr, nullptr);
         ((CPPExcInstance*)exc_obj)->fCppInstance = (PyObject*)pyobj;
+        Py_DECREF(pyclass);
         return exc_obj;
     }
+
+    Py_DECREF(pyclass);
+
     return (PyObject*)pyobj;
 }
 

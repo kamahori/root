@@ -3572,7 +3572,7 @@ TList *TClass::GetListOfBases()
             }
          }
          // We test again on fCanLoadClassInfo has another thread may have executed it.
-         if (!fHasRootPcmInfo && !fCanLoadClassInfo) {
+         if (!fHasRootPcmInfo && fCanLoadClassInfo) {
             LoadClassInfo();
          }
       }
@@ -3999,6 +3999,11 @@ void TClass::GetMissingDictionaries(THashTable& result, bool recurse)
 
    if (strncmp(fName, "pair<", 5) == 0) {
       GetMissingDictionariesForPairElements(result, visited, recurse);
+      return;
+   }
+
+   if (strncmp(fName, "unique_ptr<", 11) == 0 || strncmp(fName, "array<", 6) == 0 || strncmp(fName, "tuple<", 6) == 0) {
+      GetMissingDictionariesWithRecursionCheck(result, visited, recurse);
       return;
    }
 

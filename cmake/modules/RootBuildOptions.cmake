@@ -387,7 +387,7 @@ endif()
 
 #---Removed options------------------------------------------------------------
 foreach(opt afdsmgrd afs bonjour castor chirp geocad glite globus hdfs ios
-            krb5 ldap qt qtgsi rfio ruby sapdb srp table)
+            krb5 ldap qt qtgsi rfio ruby sapdb srp table python)
   if(${opt})
     message(FATAL_ERROR ">>> Option '${opt}' is no longer supported in ROOT ${ROOT_VERSION}.")
   endif()
@@ -402,8 +402,7 @@ endforeach()
 
 #---Replaced options--------------------------------------------------------------------------
 if(python)
-  message(DEPRECATION ">>> Please use the equivalent option 'pyroot' instead of 'python'; the latter will be removed in v6.22.")
-  set(pyroot ON CACHE BOOL "" FORCE)
+  message(STATUS ">>> INFO: 'python' option was removed. Instead, please check, that it was enabled a 'pyroot' option (by default it is ON).")
 endif()
 
 #---Avoid creating dependencies to 'non-standard' header files -------------------------------
@@ -442,6 +441,12 @@ if(macos_native)
     foreach(_prefix /sw /opt/local /usr/local) # Fink installs in /sw, and MacPort in /opt/local and Brew in /usr/local
       list(APPEND CMAKE_IGNORE_PATH ${_prefix}/bin ${_prefix}/include ${_prefix}/lib)
     endforeach()
+    if(CMAKE_VERSION VERSION_GREATER 3.15)
+      # Bug was reported on newer version of CMake on Mac OS X:
+      # https://gitlab.kitware.com/cmake/cmake/-/issues/19662
+      # https://github.com/microsoft/vcpkg/pull/7967
+      set(builtin_glew_defvalue ON)
+    endif()
   else()
     message(STATUS "Option 'macos_native' is only for MacOS systems. Ignoring it.")
   endif()

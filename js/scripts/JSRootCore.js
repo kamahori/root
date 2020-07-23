@@ -95,7 +95,7 @@
 
    "use strict";
 
-   JSROOT.version = "dev 28/05/2020";
+   JSROOT.version = "dev 3/07/2020";
 
    JSROOT.source_dir = "";
    JSROOT.source_min = false;
@@ -1084,17 +1084,18 @@
 
    /** @summary Load JSROOT functionality.
     *
-    * @desc As first argument, required components should be specifed:
+    * @desc As first argument, required components should be specified:
     *
     *    - 'io'     TFile functionality
     *    - 'tree'   TTree support
     *    - '2d'     basic 2d graphic (TCanvas/TPad/TFrame)
     *    - '3d'     basic 3d graphic (three.js)
-    *    - 'hist'   histograms 2d graphic
-    *    - 'hist3d' histograms 3d graphic
+    *    - 'hist'   histograms 2d drawing (SVG)
+    *    - 'hist3d' histograms 3d drawing (WebGL)
     *    - 'more2d' extra 2d graphic (TGraph, TF1)
     *    - 'v7'     ROOT v7 graphics
-    *    - 'v7hist' ROOT v7 histograms
+    *    - 'v7hist' ROOT v7 histograms 2d drawing (SVG)
+    *    - 'v7hist3d' v7 histograms 3d drawing (WebGL)
     *    - 'v7more' ROOT v7 special classes
     *    - 'math'   some methods from TMath class
     *    - 'jq'     jQuery and jQuery-ui
@@ -1105,7 +1106,7 @@
     *    - 'simple'  for basic user interface
     *    - 'load:<path/script.js>' list of user-specific scripts at the end of kind string
     *
-    * One could combine several compopnents, separating them by semicolon.
+    * One could combine several components, separating them by semicolon.
     * Depending of available components, either require.js or plain script loading will be used
     *
     * @param {string} kind - modules to load
@@ -1191,18 +1192,13 @@
             mainfiles += '$$$scripts/JSRootPainter' + ext + ".js;";
             extrafiles += '$$$style/JSRootPainter' + ext + '.css;';
          }
-         if ((jsroot.sources.indexOf("v6") < 0) && (kind.indexOf('v7;') < 0)) {
+         if ((jsroot.sources.indexOf("v6") < 0) && (kind.indexOf('v7') < 0)) {
             mainfiles += '$$$scripts/JSRootPainter.v6' + ext + ".js;";
             modules.push('JSRootPainter.v6');
          }
       }
 
       if (kind.indexOf('jq;')>=0) need_jquery = true;
-
-      if (((kind.indexOf('hist;')>=0) || (kind.indexOf('hist3d;')>=0)) && (jsroot.sources.indexOf("hist")<0)) {
-         mainfiles += '$$$scripts/JSRootPainter.hist' + ext + ".js;";
-         modules.push('JSRootPainter.hist');
-      }
 
       if ((kind.indexOf('v6;')>=0) && (jsroot.sources.indexOf("v6")<0)) {
          mainfiles += '$$$scripts/JSRootPainter.v6' + ext + ".js;";
@@ -1214,9 +1210,14 @@
          modules.push('JSRootPainter.v7');
       }
 
-      if ((kind.indexOf('v7hist;')>=0) && (jsroot.sources.indexOf("v7hist")<0)) {
-         mainfiles += '$$$scripts/JSRootPainter.v7hist' + ext + ".js;";
-         modules.push('JSRootPainter.v7hist');
+      if ((kind.indexOf('v7hist;')>=0) || (kind.indexOf('v7hist3d;')>=0)) {
+         if(jsroot.sources.indexOf("v7hist") < 0) {
+            mainfiles += '$$$scripts/JSRootPainter.v7hist' + ext + ".js;";
+            modules.push('JSRootPainter.v7hist');
+         }
+      } else if (((kind.indexOf('hist;')>=0) || (kind.indexOf('hist3d;')>=0)) && (jsroot.sources.indexOf("hist")<0)) {
+         mainfiles += '$$$scripts/JSRootPainter.hist' + ext + ".js;";
+         modules.push('JSRootPainter.hist');
       }
 
       if ((kind.indexOf('v7more;')>=0) && (jsroot.sources.indexOf("v7more")<0)) {
@@ -1254,7 +1255,12 @@
          modules.push('JSRoot3DPainter');
       }
 
-      if ((kind.indexOf('hist3d;')>=0) && (jsroot.sources.indexOf("hist3d")<0)) {
+      if (kind.indexOf('v7hist3d;')>=0) {
+         if ((jsroot.sources.indexOf("v7hist3d")<0)) {
+            mainfiles += '$$$scripts/JSRootPainter.v7hist3d' + ext + ".js;";
+            modules.push('JSRootPainter.v7hist3d');
+         }
+      } else if ((kind.indexOf('hist3d;')>=0) && (jsroot.sources.indexOf("hist3d")<0)) {
          mainfiles += '$$$scripts/JSRootPainter.hist3d' + ext + ".js;";
          modules.push('JSRootPainter.hist3d');
       }

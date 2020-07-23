@@ -455,10 +455,11 @@ Bool_t RooAbsPdf::traceEvalPdf(Double_t value) const
 }
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
-/// Return the integral of this PDF over all observables listed in 'nset'.
-
+/// Get normalisation term needed to normalise the raw values returned by
+/// getVal(). Note that `getVal(normalisationVariables)` will automatically
+/// apply the normalisation term returned here.
+/// \param nset Set of variables to normalise over.
 Double_t RooAbsPdf::getNorm(const RooArgSet* nset) const
 {
   if (!nset) return 1 ;
@@ -1212,7 +1213,7 @@ RooAbsReal* RooAbsPdf::createNLL(RooAbsData& data, const RooLinkedList& cmdList)
 /// <tr><td> `Minos(const RooArgSet& set)`     <td>  Only run MINOS on given subset of arguments
 /// <tr><td> `Save(Bool_t flag)`               <td>  Flag controls if RooFitResult object is produced and returned, off by default
 /// <tr><td> `Strategy(Int_t flag)`            <td>  Set Minuit strategy (0 to 2, default is 1)
-/// <tr><td> `EvalErrorWall(bool flag=true)    <td>  When parameters are in disallowed regions (e.g. PDF is negative), return very high value to fitter
+/// <tr><td> `EvalErrorWall(bool flag=true)`    <td>  When parameters are in disallowed regions (e.g. PDF is negative), return very high value to fitter
 ///                                                  to force it out of that region. This can, however, mean that the fitter gets lost in this region. If
 ///                                                  this happens, try switching it off.
 /// <tr><td> `FitOptions(const char* optStr)`  <td>  \deprecated Steer fit with classic options string (for backward compatibility).
@@ -1238,7 +1239,8 @@ RooAbsReal* RooAbsPdf::createNLL(RooAbsData& data, const RooLinkedList& cmdList)
 ///                                **Example** (Data as above):
 ///                                The errors are as big as if one fitted to 100 events.
 ///       </table>
-///
+/// <tr><td> `AsymptoticError()`               <td> Use the asymptotically correct approach to estimate errors in the presence of weights.
+///                                                 This is slower but more accurate than `SumW2Error`. See also https://arxiv.org/abs/1911.01303).
 /// <tr><td> `PrefitDataFraction(double fraction)`
 ///                                            <td>  Runs a prefit on a small dataset of size fraction*(actual data size). This can speed up fits
 ///                                                  by finding good starting values for the parameters for the actual fit.
@@ -2072,6 +2074,16 @@ RooAbsGenContext* RooAbsPdf::autoGenContext(const RooArgSet &vars, const RooData
 ///
 /// </table>
 ///
+/// #### Accessing the underlying event generator
+/// Depending on the fit model (if it is difficult to sample), it may be necessary to change generator settings.
+/// For the default generator (RooFoamGenerator), the number of samples or cells could be increased by e.g. using
+///     myPdf->specialGeneratorConfig()->getConfigSection("RooFoamGenerator").setRealValue("nSample",1e4);
+///
+/// The foam generator e.g. has the following config options:
+/// - nCell[123N]D
+/// - nSample
+/// - chatLevel
+/// \see rf902_numgenconfig.C
 
 RooDataSet *RooAbsPdf::generate(const RooArgSet& whatVars, const RooCmdArg& arg1,const RooCmdArg& arg2,
 				const RooCmdArg& arg3,const RooCmdArg& arg4, const RooCmdArg& arg5,const RooCmdArg& arg6)
@@ -2694,17 +2706,18 @@ void removeRangeOverlap(std::vector<std::pair<double, double>>& ranges) {
 ////////////////////////////////////////////////////////////////////////////////
 /// Plot (project) PDF on specified frame.
 /// - If a PDF is plotted in an empty frame, it
-/// will show a unit-normalized curve in the frame variable. When projecting, other
-/// parameters are taken at their current value.
+/// will show a unit-normalized curve in the frame variable. When projecting a multi-
+/// dimensional PDF onto the frame axis, hidden parameters are taken are taken at
+/// their current value.
 /// - If a PDF is plotted in a frame in which a dataset has already been plotted, it will
 /// show a projection integrated over all variables that were present in the shown
 /// dataset (except for the one on the x-axis). The normalization of the curve will
 /// be adjusted to the event count of the plotted dataset. An informational message
 /// will be printed for each projection step that is performed.
-/// - If a PDF is plotted in a frame with showing a dataset *after* a fit, the above happens,
-/// but if the fit was carried out in a sub range of what is shown, the PDF will be drawn and
-/// normalised only in the fit range. If this is not desired, plotting and normalisation range
-/// can be overridden using Range() and NormRange() as documented in the table.
+/// - If a PDF is plotted in a frame showing a dataset *after* a fit, the above happens,
+/// but the PDF will be drawn and normalised only in the fit range. If this is not desired,
+/// plotting and normalisation range can be overridden using Range() and NormRange() as
+/// documented in the table below.
 ///
 /// This function takes the following named arguments (for more arguments, see also
 /// RooAbsReal::plotOn(RooPlot*,const RooCmdArg&,const RooCmdArg&,const RooCmdArg&,const RooCmdArg&,
@@ -2741,8 +2754,8 @@ void removeRangeOverlap(std::vector<std::pair<double, double>>& ranges) {
 ///
 /// <tr><th> Type of argument                 <th> Projection control
 /// <tr><td> `Slice(const RooArgSet& set)`      <td>  Override default projection behaviour by omitting
-///               observables listed in set from the projection, resulting a 'slice' plot. Slicing is usually
-///               only sensible in discrete observables
+///               observables listed in set from the projection, resulting in a 'slice' plot. Slicing is mostly
+///               needed in discrete observables such as categories.
 /// <tr><td> `Project(const RooArgSet& set)`    <td>  Override default projection behaviour by projecting
 ///               over observables given in set and complete ignoring the default projection behavior. Advanced use only.
 /// <tr><td> `ProjWData(const RooAbsData& d)`   <td>  Override default projection _technique_ (integration). For observables
@@ -2750,8 +2763,10 @@ void removeRangeOverlap(std::vector<std::pair<double, double>>& ranges) {
 ///               values in given set. Consult RooFit plotting tutorial for further explanation of meaning & use of this technique
 /// <tr><td> `ProjWData(const RooArgSet& s, const RooAbsData& d)`   <td>  As above but only consider subset 's' of
 ///               observables in dataset 'd' for projection through data averaging
-/// <tr><td> `ProjectionRange(const char* rn)`  <td>  Override default range of projection integrals to a different
-///               range specified by given range name. This technique allows you to project a finite width slice in a real-valued observable
+/// <tr><td> `ProjectionRange(const char* rn)`  <td>  When projecting the PDF onto the plot axis, it is usually integrated
+///               over the full range of the invisible variables. The ProjectionRange overrides this.
+///               This is useful if the PDF was fitted in a limited range in y, but it is now projected onto x. If
+///               `ProjectionRange("<name of fit range>")` is passed, the projection is normalised correctly.
 ///
 /// <tr><th> Type of argument <th> Plotting control
 /// <tr><td> `LineStyle(Int_t style)`           <td>  Select line style by ROOT line style code, default is solid
@@ -3121,7 +3136,7 @@ RooPlot* RooAbsPdf::plotOn(RooPlot *frame, PlotOpt o) const
 ///   | `const char* what`     |  Controls what is shown. "N" adds name, "E" adds error, "A" shows asymmetric error, "U" shows unit, "H" hides the value
 ///   | `FixedPrecision(int n)`|  Controls precision, set fixed number of digits
 ///   | `AutoPrecision(int n)` |  Controls precision. Number of shown digits is calculated from error + n specified additional digits (1 is sensible default)
-/// <tr><td> `Label(const chat* label)`           <td>  Add header label to parameter box
+/// <tr><td> `Label(const chat* label)`           <td>  Add label to parameter box. Use `\n` for multi-line labels.
 /// <tr><td> `Layout(Double_t xmin, Double_t xmax, Double_t ymax)` <td>  Specify relative position of left/right side of box and top of box.
 ///                                                                      Coordinates are given as position on the pad between 0 and 1.
 ///                                                                      The lower end of the box is calculated automatically from the number of lines in the box.
@@ -3224,9 +3239,10 @@ RooPlot* RooAbsPdf::paramOn(RooPlot* frame, const RooAbsData* data, const char *
 /// Add a text box with the current parameter values and their errors to the frame.
 /// Observables of this PDF appearing in the 'data' dataset will be omitted.
 ///
-/// Optional label will be inserted as first line of the text box. Use 'sigDigits'
+/// An optional label will be inserted if passed. Multi-line labels can be generated
+/// by adding `\n` to the label string. Use 'sigDigits'
 /// to modify the default number of significant digits printed. The 'xmin,xmax,ymax'
-/// values specify the initial relative position of the text box in the plot frame
+/// values specify the initial relative position of the text box in the plot frame.
 
 RooPlot* RooAbsPdf::paramOn(RooPlot* frame, const RooArgSet& params, Bool_t showConstants, const char *label,
 			    Int_t sigDigits, Option_t *options, Double_t xmin,
@@ -3239,15 +3255,16 @@ RooPlot* RooAbsPdf::paramOn(RooPlot* frame, const RooArgSet& params, Bool_t show
   Bool_t showLabel= (label != 0 && strlen(label) > 0);
 
   // calculate the box's size, adjusting for constant parameters
-  TIterator* pIter = params.createIterator() ;
 
   Double_t ymin(ymax), dy(0.06);
-  RooRealVar *var = 0;
-  while((var=(RooRealVar*)pIter->Next())) {
+  for (const auto param : params) {
+    auto var = static_cast<RooRealVar*>(param);
     if(showConstants || !var->isConstant()) ymin-= dy;
   }
 
-  if(showLabel) ymin-= dy;
+  std::string labelString = label;
+  unsigned int numLines = std::count(labelString.begin(), labelString.end(), '\n') + 1;
+  if (showLabel) ymin -= numLines * dy;
 
   // create the box and set its options
   TPaveText *box= new TPaveText(xmin,ymax,xmax,ymin,"BRNDC");
@@ -3259,22 +3276,26 @@ RooPlot* RooAbsPdf::paramOn(RooPlot* frame, const RooArgSet& params, Bool_t show
   box->SetTextSize(0.04F);
   box->SetFillStyle(1001);
   box->SetFillColor(0);
-  //char buffer[512];
-  pIter->Reset() ;
-  while((var=(RooRealVar*)pIter->Next())) {
+
+  for (const auto param : params) {
+    auto var = static_cast<const RooRealVar*>(param);
     if(var->isConstant() && !showConstants) continue;
 
     TString *formatted= options ? var->format(sigDigits, options) : var->format(*formatCmd) ;
     box->AddText(formatted->Data());
     delete formatted;
   }
+
   // add the optional label if specified
-  if(showLabel) box->AddText(label);
+  if (showLabel) {
+    for (const auto& line : RooHelpers::tokenise(label, "\n")) {
+      box->AddText(line.c_str());
+    }
+  }
 
   // Add box to frame
   frame->addObject(box) ;
 
-  delete pIter ;
   return frame ;
 }
 

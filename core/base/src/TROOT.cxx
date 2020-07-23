@@ -67,6 +67,7 @@ of a main program creating an interactive version is shown below:
 */
 
 #include <ROOT/RConfig.hxx>
+#include <ROOT/TErrorDefaultHandler.hxx>
 #include "RConfigure.h"
 #include "RConfigOptions.h"
 #include "RVersion.h"
@@ -940,6 +941,9 @@ TROOT::~TROOT()
       gSystem->CleanCompiledMacros();
 
       // Cleanup system class
+      ROOT::Internal::SetErrorSystemMsgHandler(ROOT::Internal::ErrorSystemMsgHandlerFunc_t());
+      SetErrorHandler(ROOT::Internal::MinimalErrorHandler);
+      ROOT::Internal::ReleaseDefaultErrorHandler();
       delete gSystem;
 
       // ROOT-6022:
@@ -1929,6 +1933,9 @@ void TROOT::InitSystem()
 
       // read default files
       gEnv = new TEnv(".rootrc");
+
+      ROOT::Internal::SetErrorSystemMsgHandler([](){ return gSystem->GetError(); });
+      SetErrorHandler(DefaultErrorHandler);
 
       gDebug = gEnv->GetValue("Root.Debug", 0);
 

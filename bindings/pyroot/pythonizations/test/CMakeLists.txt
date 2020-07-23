@@ -14,9 +14,12 @@ endif()
 # Test ROOT module
 ROOT_ADD_PYUNITTEST(pyroot_root_module root_module.py)
 
+# Test versions of Python dependencies
+ROOT_ADD_PYUNITTEST(pyroot_dependency_versions dependency_versions.py)
+
 # General pythonizations
 ROOT_ADD_PYUNITTEST(pyroot_pyz_pretty_printing pretty_printing.py)
-ROOT_ADD_PYUNITTEST(pyroot_pyz_array_interface array_interface.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+ROOT_ADD_PYUNITTEST(pyroot_pyz_array_interface array_interface.py PYTHON_DEPS numpy)
 
 # TObject and subclasses pythonisations
 ROOT_ADD_PYUNITTEST(pyroot_pyz_tobject_contains tobject_contains.py)
@@ -35,10 +38,10 @@ ROOT_ADD_PYUNITTEST(pyroot_pyz_tfile_constructor tfile_constructor.py)
 file(COPY TreeHelper.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_branch_attr ttree_branch_attr.py)
 ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_iterable ttree_iterable.py)
-ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_setbranchaddress ttree_setbranchaddress.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
-ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_branch ttree_branch.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_setbranchaddress ttree_setbranchaddress.py PYTHON_DEPS numpy)
+ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_branch ttree_branch.py PYTHON_DEPS numpy)
 if (dataframe)
-    ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_asmatrix ttree_asmatrix.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+    ROOT_ADD_PYUNITTEST(pyroot_pyz_ttree_asmatrix ttree_asmatrix.py PYTHON_DEPS numpy)
 endif()
 
 # TH1 and subclasses pythonizations
@@ -90,17 +93,21 @@ ROOT_ADD_PYUNITTEST(pyroot_pyz_tobjstring_comparisonops tobjstring_comparisonops
 
 # RVec and subclasses pythonizations
 ROOT_ADD_PYUNITTEST(pyroot_pyz_rvec rvec.py)
-ROOT_ADD_PYUNITTEST(pyroot_pyz_rvec_asrvec rvec_asrvec.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+if(NOT MSVC OR win_broken_tests)
+    ROOT_ADD_PYUNITTEST(pyroot_pyz_rvec_asrvec rvec_asrvec.py PYTHON_DEPS numpy)
+endif()
 
 # RDataFrame and subclasses pythonizations
 if (dataframe)
-    ROOT_ADD_PYUNITTEST(pyroot_pyz_rdataframe_asnumpy rdataframe_asnumpy.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
-    ROOT_ADD_PYUNITTEST(pyroot_pyz_rdataframe_makenumpy rdataframe_makenumpy.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+    if(NOT MSVC OR win_broken_tests)
+        ROOT_ADD_PYUNITTEST(pyroot_pyz_rdataframe_asnumpy rdataframe_asnumpy.py PYTHON_DEPS numpy)
+        ROOT_ADD_PYUNITTEST(pyroot_pyz_rdataframe_makenumpy rdataframe_makenumpy.py PYTHON_DEPS numpy)
+    endif()
 endif()
 
 # RTensor pythonizations
-if (dataframe)
-    ROOT_ADD_PYUNITTEST(pyroot_pyz_rtensor rtensor.py DEPENDENCIES_FOUND ${NUMPY_FOUND})
+if (dataframe AND tmva)
+    ROOT_ADD_PYUNITTEST(pyroot_pyz_rtensor rtensor.py PYTHON_DEPS numpy)
 endif()
 
 # Passing Python callables to ROOT.TF
@@ -117,14 +124,17 @@ if(roofit)
   ROOT_ADD_PYUNITTEST(pyroot_pyz_rooworkspace rooworkspace.py)
 endif()
 
-# std::string_view backport in CPyCppyy
 if (dataframe)
-    ROOT_ADD_PYUNITTEST(pyroot_string_view_backport string_view_backport.py)
-endif()
+    if(NOT MSVC OR win_broken_tests)
+        # std::string_view backport in CPyCppyy
+        ROOT_ADD_PYUNITTEST(pyroot_string_view_backport string_view_backport.py)
 
-# Test wrapping Python callables for use in C++ using numba
-if (dataframe)
-    ROOT_ADD_PYUNITTEST(pyroot_numbadeclare numbadeclare.py)
+        if(NOT (DEFINED ENV{ROOTTEST_IGNORE_NUMBA_PY2} AND PYTHON_VERSION_MAJOR_Development_Main EQUAL 2) AND NOT
+            (DEFINED ENV{ROOTTEST_IGNORE_NUMBA_PY3} AND PYTHON_VERSION_MAJOR_Development_Main EQUAL 3))
+            # Test wrapping Python callables for use in C++ using numba
+            ROOT_ADD_PYUNITTEST(pyroot_numbadeclare numbadeclare.py PYTHON_DEPS numba)
+        endif()
+    endif()
 endif()
 
 # TComplex pythonizations

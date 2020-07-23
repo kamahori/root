@@ -16,9 +16,10 @@ if(MSVC AND MSVC_VERSION GREATER_EQUAL 1925)
 endif()
 
 set(BASE_HEADERS
-  ROOT/StringConv.hxx
+  ROOT/TErrorDefaultHandler.hxx
   ROOT/TExecutor.hxx
   ROOT/TSequentialExecutor.hxx
+  ROOT/StringConv.hxx
   Buttons.h
   Bytes.h
   Byteswap.h
@@ -46,7 +47,6 @@ set(BASE_HEADERS
   TDatime.h
   TDirectory.h
   TEnv.h
-  TError.h
   TException.h
   TExec.h
   TFileCollection.h
@@ -137,7 +137,7 @@ set(BASE_SOURCES
   src/TDatime.cxx
   src/TDirectory.cxx
   src/TEnv.cxx
-  src/TError.cxx
+  src/TErrorDefaultHandler.cxx
   src/TException.cxx
   src/TExec.cxx
   src/TFileCollection.cxx

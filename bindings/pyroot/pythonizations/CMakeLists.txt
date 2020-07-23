@@ -16,6 +16,8 @@ if(dataframe)
     list(APPEND PYROOT_EXTRA_SOURCE
         src/RDataFramePyz.cxx
         src/RTensorPyz.cxx)
+    list(APPEND PYROOT_EXTRA_HEADERS
+        inc/RNumpyDS.hxx)
 endif()
 
 set(py_sources
@@ -75,6 +77,8 @@ set(cpp_sources
     src/PyzPythonHelpers.cxx
     src/CPPInstancePyz.cxx
     src/FacadeHelpers.cxx
+    src/TPyDispatcher.cxx
+    inc/TPyDispatcher.h
     ${PYROOT_EXTRA_SOURCE}
 )
 
@@ -87,6 +91,7 @@ file(COPY ${ROOT_headers_dir}/ DESTINATION ${CMAKE_BINARY_DIR}/include/ROOT)
 
 foreach(val RANGE ${how_many_pythons})
   list(GET python_under_version_strings ${val} python_under_version_string)
+  list(GET python_major_version_strings ${val} python_major_version_string)
   list(GET python_include_dirs ${val} python_include_dir)
   list(GET python_executables ${val} python_executable)
 
@@ -95,13 +100,19 @@ foreach(val RANGE ${how_many_pythons})
   add_library(${libname} SHARED ${cpp_sources})
   # Set the suffix to '.so' and the prefix to 'lib'
   set_target_properties(${libname} PROPERTIES  ${ROOT_LIBRARY_PROPERTIES})
-  if(APPLE)
+  if(MSVC)
+    set_target_properties(${libname} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+    set_target_properties(${libname} PROPERTIES SUFFIX ".pyd")
+    target_link_libraries(${libname} PUBLIC Core Tree cppyy${python_under_version_string})
+  elseif(APPLE)
     target_link_libraries(${libname} PUBLIC -Wl,-bind_at_load -Wl,-undefined -Wl,dynamic_lookup Core Tree cppyy${python_under_version_string})
-  elseif(NOT MSVC)
+  else()
     target_link_libraries(${libname} PUBLIC -Wl,--unresolved-symbols=ignore-all Core Tree cppyy${python_under_version_string})
   endif()
 
-  target_include_directories(${libname} PRIVATE ${python_include_dir})
+  target_include_directories(${libname}
+     PRIVATE ${python_include_dir}
+     PUBLIC  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>)
 
   # Disables warnings caused by Py_RETURN_TRUE/Py_RETURN_FALSE
   if(NOT MSVC)
@@ -123,8 +134,20 @@ foreach(val RANGE ${how_many_pythons})
     install(CODE "execute_process(COMMAND ${python_executable} -O -m py_compile ${localruntimedir}/${py_source})")
   endforeach()
 
+  # Create meta-target PyROOT2 and PyROOT3 (INTERFACE library)
+  # Export of targets are not supported for custom targets(add_custom_targets())
+  add_library(PyROOT${python_major_version_string} INTERFACE)
+  target_link_libraries(PyROOT${python_major_version_string} INTERFACE cppyy_backend${python_under_version_string} cppyy${python_under_version_string} ROOTPythonizations${python_under_version_string})
+
   # Install library
   install(TARGETS ${libname} EXPORT ${CMAKE_PROJECT_NAME}Exports
+                             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT libraries
+                             LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries
+                             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries)
+
+  # Install meta-target PyROOT2 and PyROOT3 (INTERFACE library)
+  # Install library
+  install(TARGETS PyROOT${python_major_version_string} EXPORT ${CMAKE_PROJECT_NAME}Exports
                              RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT libraries
                              LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries
                              ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT libraries)
@@ -134,5 +157,8 @@ endforeach()
 install(DIRECTORY ${localruntimedir}/ROOT
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
         COMPONENT libraries)
+
+# Install headers required by pythonizations
+install(FILES ${PYROOT_EXTRA_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ROOT)
 
 ROOT_ADD_TEST_SUBDIRECTORY(test)

@@ -29,14 +29,11 @@ namespace Experimental {
 
 ROOT::Experimental::RNTupleDS::RNTupleDS(std::unique_ptr<ROOT::Experimental::RNTupleReader> ntuple)
 {
-   fReaders.emplace_back(std::move(ntuple));
-   auto rootField = fReaders[0]->GetModel()->GetRootField();
-   for (auto &f : *rootField) {
-      if (f.GetParent() != rootField)
-         continue;
-      fColumnNames.push_back(f.GetName());
-      fColumnTypes.push_back(f.GetType());
+   for (const auto& f : ntuple->GetDescriptor().GetTopLevelFields()) {
+      fColumnNames.push_back(f.GetFieldName());
+      fColumnTypes.push_back(f.GetTypeName());
    }
+   fReaders.emplace_back(std::move(ntuple));
 }
 
 const std::vector<std::string>& RNTupleDS::GetColumnNames() const
@@ -61,7 +58,7 @@ RDF::RDataSource::Record_t RNTupleDS::GetColumnReadersImpl(std::string_view name
 
 bool RNTupleDS::SetEntry(unsigned int slot, ULong64_t entryIndex)
 {
-   fReaders[slot]->LoadEntry(entryIndex, fEntries[slot].get());
+   fReaders[slot]->LoadEntry(entryIndex, *fEntries[slot]);
    return true;
 }
 
