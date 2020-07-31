@@ -102,6 +102,8 @@ void R__zipMultipleAlgorithm(int cxlevel, int *srcsize, char *src, int *tgtsize,
      R__zipZSTD(cxlevel, srcsize, src, tgtsize, tgt, irep);;
   } else if (compressionAlgorithm == ROOT::RCompressionSetting::EAlgorithm::kLZ4BS) {
      R__zipLZ4BS(cxlevel, srcsize, src, tgtsize, tgt, irep);
+  } else if (compressionAlgorithm == ROOT::RCompressionSetting::EAlgorithm::kZSTDBS) {
+     R__zipZSTDBS(cxlevel, srcsize, src, tgtsize, tgt, irep);
   } else if (compressionAlgorithm == ROOT::RCompressionSetting::EAlgorithm::kOldCompressionAlgo || compressionAlgorithm == ROOT::RCompressionSetting::EAlgorithm::kUseGlobal) {
      R__zipOld(cxlevel, srcsize, src, tgtsize, tgt, irep);
   } else {
@@ -274,6 +276,11 @@ static int is_valid_header_lz4(unsigned char *src)
    return src[0] == 'L' && src[1] == '4';
 }
 
+static int is_valid_header_zstdbs(unsigned char *src)
+{
+   return src[0] == 'Z' && src[1] == 'S' && src[2] == 'B';
+}
+
 static int is_valid_header_zstd(unsigned char *src)
 {
    return src[0] == 'Z' && src[1] == 'S' && src[2] == '\1';
@@ -377,6 +384,8 @@ void R__unzip(int *srcsize, uch *src, int *tgtsize, uch *tgt, int *irep)
   } else if (is_valid_header_lz4(src)) {
      R__unzipLZ4(srcsize, src, tgtsize, tgt, irep);
      return;
+  } else if (is_valid_header_zstdbs(src)) {
+     R__unzipZSTDBS(srcsize, src, tgtsize, tgt, irep);
   } else if (is_valid_header_zstd(src)) {
       R__unzipZSTD(srcsize, src, tgtsize, tgt, irep);
       return;
