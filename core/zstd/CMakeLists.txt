@@ -14,6 +14,7 @@ target_include_directories(Zstd PRIVATE
    ${ZSTD_INCLUDE_DIR}
    ${CMAKE_SOURCE_DIR}/core/base/inc
    ${CMAKE_BINARY_DIR}/ginclude
+   ${CMAKE_SOURCE_DIR}/core/zip/inc
 )
 
 ROOT_INSTALL_HEADERS()

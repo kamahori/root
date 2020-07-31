@@ -71,12 +71,12 @@ void R__unzipZSTD(int *srcsize, unsigned char *src, int *tgtsize, unsigned char 
       return;
     }
 
-    int ZSTD_version =  ZSTD_versionNumber() / (100 * 100);
-    if (R__unlikely(src[2] != ZSTD_version)) {
-      std::cerr << "R__unzipZSTD: This version of ZSTD is incompatible with the on-disk version "
-      "got "<< src[2] << "; expected "<< ZSTD_version << ")" << std::endl;
-      return;
-    }
+    // int ZSTD_version =  ZSTD_versionNumber() / (100 * 100);
+    // if (R__unlikely(src[2] != ZSTD_version)) {
+    //   std::cerr << "R__unzipZSTD: This version of ZSTD is incompatible with the on-disk version "
+    //   "got "<< src[2] << "; expected "<< ZSTD_version << ")" << std::endl;
+    //   return;
+    // }
 
     size_t retval = ZSTD_decompressDCtx(fCtx.get(),
                                         (char *)tgt, static_cast<size_t>(*tgtsize),
@@ -100,7 +100,7 @@ void R__unzipZSTD(int *srcsize, unsigned char *src, int *tgtsize, unsigned char 
 void R__zipZSTDBS(int cxlevel, int *srcsize, char *src, int *tgtsize, char *tgt, int *irep)
 {
     if (*srcsize % sizeof(float) != 0) {
-        R__zipZSTD(cxlevel, srcsize, src, tgtsize, tgt, irep)
+        R__zipZSTD(cxlevel, srcsize, src, tgtsize, tgt, irep);
     }
 
     using Ctx_ptr = std::unique_ptr<ZSTD_CCtx, decltype(&ZSTD_freeCCtx)>;
@@ -157,12 +157,12 @@ void R__unzipZSTDBS(int *srcsize, unsigned char *src, int *tgtsize, unsigned cha
       return;
     }
 
-    int ZSTD_version =  ZSTD_versionNumber() / (100 * 100);
-    if (R__unlikely(src[2] != ZSTD_version)) {
-      std::cerr << "R__unzipZSTD: This version of ZSTD is incompatible with the on-disk version "
-      "got "<< src[2] << "; expected "<< ZSTD_version << ")" << std::endl;
-      return;
-    }
+    // int ZSTD_version =  ZSTD_versionNumber() / (100 * 100);
+    // if (R__unlikely(src[2] != ZSTD_version)) {
+    //   std::cerr << "R__unzipZSTD: This version of ZSTD is incompatible with the on-disk version "
+    //   "got "<< src[2] << "; expected "<< ZSTD_version << ")" << std::endl;
+    //   return;
+    // }
 
     int64_t ret_bs;
     size_t elem_count = *srcsize / sizeof(float);

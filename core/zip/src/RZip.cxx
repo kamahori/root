@@ -289,7 +289,7 @@ static int is_valid_header_zstd(unsigned char *src)
 static int is_valid_header(unsigned char *src)
 {
    return is_valid_header_zlib(src) || is_valid_header_old(src) || is_valid_header_lzma(src) || is_valid_header_lz4bs(src) ||
-          is_valid_header_lz4(src) || is_valid_header_zstd(src);
+          is_valid_header_lz4(src) || is_valid_header_zstdbs(src) || is_valid_header_zstd(src);
 }
 
 int R__unzip_header(int *srcsize, uch *src, int *tgtsize)
@@ -386,6 +386,7 @@ void R__unzip(int *srcsize, uch *src, int *tgtsize, uch *tgt, int *irep)
      return;
   } else if (is_valid_header_zstdbs(src)) {
      R__unzipZSTDBS(srcsize, src, tgtsize, tgt, irep);
+     return;
   } else if (is_valid_header_zstd(src)) {
       R__unzipZSTD(srcsize, src, tgtsize, tgt, irep);
       return;

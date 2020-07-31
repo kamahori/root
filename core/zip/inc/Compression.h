@@ -99,7 +99,7 @@ struct RCompressionSetting {
          /// Use LZ4BS (LZ4 with Bitshuffle) compression
          kLZ4BS,
          /// Use ZSTDBS (ZSTD with Bitshuffle) compression
-         kZSTDBS
+         kZSTDBS,
          /// Undefined compression algorithm (must be kept the last of the list in case a new algorithm is added).
          kUndefined
       };
